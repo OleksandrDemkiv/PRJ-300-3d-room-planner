@@ -1,0 +1,49 @@
+import { Component, EventEmitter, Output } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+
+export interface RoomConfig {
+  shape: 'rectangle' | 'square';
+  width: number;
+  height: number;
+  depth: number;
+}
+
+@Component({
+  selector: 'app-room-config-modal',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  templateUrl: './room-config-modal.component.html',
+  styleUrl: './room-config-modal.component.css'
+})
+export class RoomConfigModalComponent {
+  @Output() roomConfigured = new EventEmitter<RoomConfig>();
+
+  selectedShape: 'rectangle' | 'square' = 'rectangle';
+  roomWidth = 6;
+  roomHeight = 3;
+  roomDepth = 5;
+
+  selectShape(shape: 'rectangle' | 'square') {
+    this.selectedShape = shape;
+    if (shape === 'square') {
+      this.roomDepth = this.roomWidth; // Make depth equal to width for square
+    }
+  }
+
+  onWidthChange() {
+    if (this.selectedShape === 'square') {
+      this.roomDepth = this.roomWidth; // Keep square proportions
+    }
+  }
+
+  createRoom() {
+    const config: RoomConfig = {
+      shape: this.selectedShape,
+      width: this.roomWidth,
+      height: this.roomHeight,
+      depth: this.roomDepth
+    };
+    this.roomConfigured.emit(config);
+  }
+}
