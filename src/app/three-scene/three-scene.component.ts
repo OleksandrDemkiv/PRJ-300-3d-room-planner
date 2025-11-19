@@ -11,11 +11,12 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { GLTF, GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RoomConfigModalComponent, RoomConfig } from '../components/room-config-modal/room-config-modal.component';
+import { FurnitureSidebarComponent, FurnitureItem } from '../components/furniture-sidebar/furniture-sidebar.component';
 
 @Component({
   selector: 'app-three-scene',
   standalone: true,
-  imports: [FormsModule, CommonModule, RoomConfigModalComponent],
+  imports: [FormsModule, CommonModule, RoomConfigModalComponent, FurnitureSidebarComponent],
   templateUrl: './three-scene.component.html',
   styleUrls: ['./three-scene.component.css'],
 })
@@ -82,7 +83,7 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
   private initializeScene(): void {
     this.initThree();
     this.buildRoom();
-    this.loadModels();
+    // this.loadModels();
     this.startRenderingLoop();
     window.addEventListener('resize', this.onWindowResize, { passive: true });
     this.setupMouseEvents();
@@ -214,58 +215,6 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
     this.controls.maxPolarAngle = Math.PI / 2;
   }
 
-  private loadModels() {
-    const loader = new GLTFLoader();
-
-    const addModel = (path: string, x: number, z: number, name: string) => {
-      loader.load(
-        path,
-        (gltf: GLTF) => {
-          const obj = gltf.scene;
-          obj.name = name;
-
-          // Enable shadows
-          obj.traverse((child) => {
-            if ((child as THREE.Mesh).isMesh) {
-              const mesh = child as THREE.Mesh;
-              mesh.castShadow = true;
-              mesh.receiveShadow = true;
-            }
-          });
-
-          // Get bounding box
-          const box = new THREE.Box3().setFromObject(obj);
-          const size = new THREE.Vector3();
-          box.getSize(size);
-
-          // Get minimum coordinates
-          const min = box.min.clone();
-
-          // Align bottom with floor
-          obj.position.y = -this.roomHeight / 2;
-
-          // Initial placement
-          obj.position.x = x;
-          obj.position.z = z;
-
-          // Add to roomGroup
-          this.roomGroup.add(obj);
-
-          // Add to movable objects array for interaction
-          this.movableObjects.push(obj);
-
-          console.log(`${name} loaded inside room:`, obj.position);
-        },
-        undefined,
-        (err) => console.error(`Error loading ${name}:`, err)
-      );
-    };
-
-
-    addModel('assets/models/desk.glb', 0, 0, 'desk');
-    addModel('assets/models/sofa.glb', 0, 0, 'sofa');
-  }
-
   private startRenderingLoop() {
     const render = () => {
       this.controls.update();
@@ -298,6 +247,7 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
     canvas.addEventListener('mousemove', this.onMouseMove);
     canvas.addEventListener('mouseup', this.onMouseUp);
     canvas.addEventListener('wheel', this.onWheel, { passive: false });
+    canvas.addEventListener('auxclick', this.onMiddleClick);
     canvas.style.cursor = 'default';
   }
 
@@ -307,6 +257,7 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
     canvas.removeEventListener('mousemove', this.onMouseMove);
     canvas.removeEventListener('mouseup', this.onMouseUp);
     canvas.removeEventListener('wheel', this.onWheel);
+    canvas.removeEventListener('auxclick', this.onMiddleClick);
   }
 
   private onMouseDown = (event: MouseEvent) => {
@@ -459,6 +410,43 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
     }
   };
 
+  private onMiddleClick = (event: MouseEvent) => {
+    // Middle mouse button (button 1)
+    if (event.button === 1) {
+      event.preventDefault();
+      this.updateMousePosition(event);
+
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const intersects = this.raycaster.intersectObjects(this.movableObjects, true);
+
+      if (intersects.length > 0) {
+        // Find the top-level movable object
+        let object = intersects[0].object;
+        while (object.parent && !this.movableObjects.includes(object)) {
+          object = object.parent;
+        }
+
+        if (this.movableObjects.includes(object)) {
+          // Remove from movable objects array
+          const index = this.movableObjects.indexOf(object);
+          if (index > -1) {
+            this.movableObjects.splice(index, 1);
+          }
+
+          // If this is the selected object, deselect it first
+          if (this.selectedObject === object) {
+            this.deselectObject();
+          }
+
+          // Remove from scene
+          this.roomGroup.remove(object);
+          
+          console.log(`Removed object: ${object.name}`);
+        }
+      }
+    }
+  };
+
   private updateRotationDisplay() {
     if (this.selectedObject) {
       // Convert radians to degrees and normalize to 0-360
@@ -497,5 +485,137 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
     if (boundingBox.max.z > maxZ) {
       this.selectedObject.position.z -= (boundingBox.max.z - maxZ);
     }
+  }
+
+  onFurnitureItemSelected(item: FurnitureItem): void {
+    const loader = new GLTFLoader();
+    loader.load(
+      item.path,
+      (gltf: GLTF) => {
+        const obj = gltf.scene;
+        obj.name = item.name;
+
+        // Enable shadows
+        obj.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+          }
+        });
+
+        // Get bounding box
+        const box = new THREE.Box3().setFromObject(obj);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+
+        // Align bottom with floor
+        obj.position.y = -this.roomHeight / 2;
+
+        // Place at room center
+        obj.position.x = 0;
+        obj.position.z = 0;
+
+        // Add to roomGroup
+        this.roomGroup.add(obj);
+
+        // Add to movable objects array for interaction
+        this.movableObjects.push(obj);
+
+        console.log(`${item.displayName} loaded inside room:`, obj.position);
+      },
+      undefined,
+      (err) => console.error(`Error loading ${item.displayName}:`, err)
+    );
+  }
+
+  viewCart(): void {
+    const cartItems = this.movableObjects.map((obj, index) => {
+      // Convert rotation from radians to degrees
+      const rotationDegrees = Math.round((obj.rotation.y * 180) / Math.PI);
+      
+      return {
+        id: index + 1,
+        name: obj.name,
+        position: {
+          x: Math.round(obj.position.x * 100) / 100,
+          y: Math.round(obj.position.y * 100) / 100,
+          z: Math.round(obj.position.z * 100) / 100
+        },
+        rotation: rotationDegrees
+      };
+    });
+
+    const cartData = {
+      roomDimensions: {
+        width: this.roomWidth,
+        height: this.roomHeight,
+        depth: this.roomDepth
+      },
+      items: cartItems,
+      totalItems: cartItems.length
+    };
+
+    console.log('=== ROOM PLANNER CART ===');
+    console.log(JSON.stringify(cartData, null, 2));
+    console.log('========================');
+    
+    // Also log a summary
+    console.log(`\nCart Summary: ${cartItems.length} item(s) in the scene`);
+    cartItems.forEach(item => {
+      console.log(`  - ${item.name} at position (${item.position.x}, ${item.position.z}), rotation: ${item.rotation}°`);
+    });
+  }
+
+  private loadModels() {
+    const loader = new GLTFLoader();
+
+    const addModel = (path: string, x: number, z: number, name: string) => {
+      loader.load(
+        path,
+        (gltf: GLTF) => {
+          const obj = gltf.scene;
+          obj.name = name;
+
+          // Enable shadows
+          obj.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              const mesh = child as THREE.Mesh;
+              mesh.castShadow = true;
+              mesh.receiveShadow = true;
+            }
+          });
+
+          // Get bounding box
+          const box = new THREE.Box3().setFromObject(obj);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+
+          // Get minimum coordinates
+          const min = box.min.clone();
+
+          // Align bottom with floor
+          obj.position.y = -this.roomHeight / 2;
+
+          // Initial placement
+          obj.position.x = x;
+          obj.position.z = z;
+
+          // Add to roomGroup
+          this.roomGroup.add(obj);
+
+          // Add to movable objects array for interaction
+          this.movableObjects.push(obj);
+
+          console.log(`${name} loaded inside room:`, obj.position);
+        },
+        undefined,
+        (err) => console.error(`Error loading ${name}:`, err)
+      );
+    };
+
+
+    addModel('assets/models/desk.glb', 0, 0, 'desk');
+    addModel('assets/models/sofa.glb', 0, 0, 'sofa');
   }
 }

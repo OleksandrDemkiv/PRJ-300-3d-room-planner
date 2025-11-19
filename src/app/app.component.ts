@@ -4,7 +4,7 @@ import { ThreeSceneComponent } from './three-scene/three-scene.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, ThreeSceneComponent],
+  imports: [ThreeSceneComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
