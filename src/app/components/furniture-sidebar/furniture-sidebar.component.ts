@@ -18,7 +18,7 @@ export class FurnitureSidebarComponent {
   @Output() itemSelected = new EventEmitter<FurnitureItem>();
 
   furnitureItems: FurnitureItem[] = [
-    { name: 'bed_double', displayName: 'Double Bed', path: 'assets/models/bed_double.glb', icon: '🛏️' },
+    { name: 'bed_double', displayName: 'Double Bed', path: 'assets/models/desk.glb', icon: '🛏️' },
   ];
 
   onItemClick(item: FurnitureItem): void {
