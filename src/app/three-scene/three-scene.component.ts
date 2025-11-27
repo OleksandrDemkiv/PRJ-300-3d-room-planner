@@ -27,6 +27,7 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
   // Modal state
   showConfigModal = true;
   roomConfigured = false;
+  isRightPanelCollapsed = true; // Start collapsed
 
   // Inputs bound to UI
   roomWidth = 6;
@@ -35,6 +36,7 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
   wallThickness = 0.2;
   wallColor = '#c0e0ff';
   floorColor = '#f2f2f2';
+  floorTexture = 'color'; // Options: 'color', 'wood', 'tile', 'concrete', 'carpet'
   isInsideView = false;
   currentRotationDegrees = 0;
 
@@ -47,12 +49,14 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
 
   private wallMaterial!: THREE.MeshStandardMaterial;
   private floorMaterial!: THREE.MeshStandardMaterial;
+  private textureLoader = new THREE.TextureLoader();
   private roomGroup = new THREE.Group();
 
   // Object interaction
   private raycaster = new THREE.Raycaster();
   private mouse = new THREE.Vector2();
   selectedObject: THREE.Object3D | null = null;
+  selectedObjectDisplayName: string = '';
   private selectionBox: THREE.BoxHelper | null = null;
   private isDragging = false;
   private dragPlane = new THREE.Plane();
@@ -71,6 +75,9 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
     this.roomWidth = config.width;
     this.roomHeight = config.height;
     this.roomDepth = config.depth;
+    this.wallColor = config.wallColor;
+    this.floorTexture = config.floorTexture;
+    this.floorColor = config.floorColor;
     
     // Close modal and mark as configured
     this.showConfigModal = false;
@@ -83,14 +90,70 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
   private initializeScene(): void {
     this.initThree();
     this.buildRoom();
-    // this.loadModels();
     this.startRenderingLoop();
     window.addEventListener('resize', this.onWindowResize, { passive: true });
     this.setupMouseEvents();
+    this.setupDragAndDrop();
+  }
+
+  private setupDragAndDrop(): void {
+    // Add drag and drop listeners to document body
+    document.body.addEventListener('dragover', this.handleDragOver);
+    document.body.addEventListener('drop', this.handleDrop);
+  }
+
+  private handleDragOver = (event: DragEvent): void => {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  };
+
+  private handleDrop = (event: DragEvent): void => {
+    event.preventDefault();
+    
+    if (!event.dataTransfer) return;
+    
+    const data = event.dataTransfer.getData('application/json');
+    if (!data) return;
+    
+    // Check if drop is over the canvas area
+    const rect = this.containerRef.nativeElement.getBoundingClientRect();
+    const isOverCanvas = event.clientX >= rect.left && 
+                         event.clientX <= rect.right && 
+                         event.clientY >= rect.top && 
+                         event.clientY <= rect.bottom;
+    
+    if (!isOverCanvas) return;
+    
+    const item: FurnitureItem = JSON.parse(data);
+    this.loadFurnitureAtDropPosition(event, item);
+  };
+
+  private loadFurnitureAtDropPosition(event: DragEvent, item: FurnitureItem): void {
+    // Calculate 3D position from mouse coordinates
+    const rect = this.containerRef.nativeElement.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    this.mouse.set(x, y);
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    
+    // Create a plane at floor level to intersect with
+    const floorY = -this.roomHeight / 2;
+    const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -floorY);
+    const intersectPoint = new THREE.Vector3();
+    
+    this.raycaster.ray.intersectPlane(floorPlane, intersectPoint);
+    
+    // Load furniture at the drop position
+    this.onFurnitureItemSelected(item, intersectPoint);
   }
 
   ngOnDestroy(): void {
     window.removeEventListener('resize', this.onWindowResize);
+    document.body.removeEventListener('dragover', this.handleDragOver);
+    document.body.removeEventListener('drop', this.handleDrop);
     this.removeMouseEvents();
     this.stopRenderingLoop();
     this.controls.dispose();
@@ -169,10 +232,42 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -roomHeight / 2 + 0.01; // bottom of room
     this.roomGroup.add(floor);
+
+    // Apply initial floor texture after floor is created
+    this.updateFloorTexture();
   }
 
   updateRoom() {
+    // Clear all furniture objects before rebuilding room
+    this.clearAllFurniture();
     this.buildRoom();
+  }
+
+  private clearAllFurniture() {
+    // Remove all movable objects from the scene
+    this.movableObjects.forEach(obj => {
+      this.roomGroup.remove(obj);
+      // Traverse and dispose of geometries and materials
+      obj.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          if (mesh.geometry) mesh.geometry.dispose();
+          if (mesh.material) {
+            if (Array.isArray(mesh.material)) {
+              mesh.material.forEach(mat => mat.dispose());
+            } else {
+              mesh.material.dispose();
+            }
+          }
+        }
+      });
+    });
+    
+    // Clear the movable objects array
+    this.movableObjects = [];
+    
+    // Deselect any selected object
+    this.deselectObject();
   }
 
   updateWallColor() {
@@ -181,6 +276,42 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
 
   updateFloorColor() {
     this.floorMaterial.color.set(this.floorColor);
+  }
+
+  updateFloorTexture() {
+    // Remove existing texture
+    if (this.floorMaterial.map) {
+      this.floorMaterial.map.dispose();
+      this.floorMaterial.map = null;
+    }
+
+    if (this.floorTexture === 'color') {
+      // Solid color - no texture
+      this.floorMaterial.color.set(this.floorColor);
+      this.floorMaterial.needsUpdate = true;
+    } else {
+      // Load texture image from assets
+      const texturePath = `assets/textures/${this.floorTexture}.jpg`;
+      
+      this.textureLoader.load(
+        texturePath,
+        (texture) => {
+          // Configure texture wrapping and repeat
+          texture.wrapS = THREE.RepeatWrapping;
+          texture.wrapT = THREE.RepeatWrapping;
+          texture.repeat.set(4, 4);
+          
+          // Apply texture to floor material
+          this.floorMaterial.map = texture;
+          this.floorMaterial.color.set(0xffffff); // Reset to white to show texture properly
+          this.floorMaterial.needsUpdate = true;
+        },
+        undefined,
+        (error) => {
+          console.error(`Error loading texture: ${texturePath}`, error);
+        }
+      );
+    }
   }
 
   toggleCameraView() {
@@ -279,6 +410,7 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
         this.controls.enableZoom = false; // Disable zoom when object is selected
         this.isDragging = true;
         this.selectedObject = object;
+        this.selectedObjectDisplayName = object.userData['displayName'] || object.name;
 
         // Create selection box
         this.createSelectionBox(object);
@@ -381,6 +513,7 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
       this.selectionBox = null;
     }
     this.selectedObject = null;
+    this.selectedObjectDisplayName = '';
     this.currentRotationDegrees = 0;
     this.controls.enableZoom = true;
   }
@@ -440,8 +573,6 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
 
           // Remove from scene
           this.roomGroup.remove(object);
-          
-          console.log(`Removed object: ${object.name}`);
         }
       }
     }
@@ -454,6 +585,51 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
       degrees = ((degrees % 360) + 360) % 360; // Normalize to 0-360
       this.currentRotationDegrees = Math.round(degrees);
     }
+  }
+
+  onFurnitureItemSelected(item: FurnitureItem, dropPosition?: THREE.Vector3): void {
+    const loader = new GLTFLoader();
+    loader.load(
+      item.path,
+      (gltf: GLTF) => {
+        const obj = gltf.scene;
+        obj.name = item.name;
+        obj.userData['displayName'] = item.displayName;
+
+        // Enable shadows
+        obj.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+          }
+        });
+
+        // Align bottom with floor
+        obj.position.y = -this.roomHeight / 2;
+
+        // Set position: use drop position if provided, otherwise center
+        if (dropPosition) {
+          obj.position.x = dropPosition.x;
+          obj.position.z = dropPosition.z;
+        } else {
+          obj.position.x = 0;
+          obj.position.z = 0;
+        }
+
+        // Add to scene first
+        this.roomGroup.add(obj);
+        this.movableObjects.push(obj);
+
+        // Constrain to room boundaries
+        const prevSelected = this.selectedObject;
+        this.selectedObject = obj;
+        this.constrainObjectToRoom();
+        this.selectedObject = prevSelected;
+      },
+      undefined,
+      (err) => console.error(`Error loading ${item.displayName}:`, err)
+    );
   }
 
   private constrainObjectToRoom() {
@@ -487,46 +663,8 @@ export class ThreeSceneComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  onFurnitureItemSelected(item: FurnitureItem): void {
-    const loader = new GLTFLoader();
-    loader.load(
-      item.path,
-      (gltf: GLTF) => {
-        const obj = gltf.scene;
-        obj.name = item.name;
-
-        // Enable shadows
-        obj.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh;
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-          }
-        });
-
-        // Get bounding box
-        const box = new THREE.Box3().setFromObject(obj);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-
-        // Align bottom with floor
-        obj.position.y = -this.roomHeight / 2;
-
-        // Place at room center
-        obj.position.x = 0;
-        obj.position.z = 0;
-
-        // Add to roomGroup
-        this.roomGroup.add(obj);
-
-        // Add to movable objects array for interaction
-        this.movableObjects.push(obj);
-
-        console.log(`${item.displayName} loaded inside room:`, obj.position);
-      },
-      undefined,
-      (err) => console.error(`Error loading ${item.displayName}:`, err)
-    );
+  toggleRightPanel(): void {
+    this.isRightPanelCollapsed = !this.isRightPanelCollapsed;
   }
 
   viewCart(): void {

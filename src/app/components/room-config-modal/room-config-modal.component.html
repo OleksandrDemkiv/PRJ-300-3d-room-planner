@@ -1,5 +1,5 @@
 <div class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-lg w-full animate-slideIn">
+    <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-4xl w-full animate-slideIn">
         <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Configure Your Room</h2>
         
         <!-- Shape Selector -->
@@ -13,8 +13,14 @@
                     [class.ring-indigo-500]="selectedShape === 'rectangle'"
                     [class.bg-indigo-50]="selectedShape === 'rectangle'"
                     class="p-4 border-2 border-gray-300 rounded-xl hover:border-indigo-400 
-                            transition-all duration-200 flex flex-col items-center gap-2 cursor-pointer">
-                    <div class="text-4xl">▭</div>
+                            transition-all duration-200 flex flex-col items-center gap-2 cursor-pointer group">
+                    <!-- SVG Rectangle Icon -->
+                    <svg class="w-16 h-16" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="8" y="20" width="48" height="24" 
+                              class="fill-none stroke-gray-400 group-hover:stroke-indigo-500 transition-colors"
+                              [class.stroke-indigo-600]="selectedShape === 'rectangle'"
+                              stroke-width="3" rx="2"/>
+                    </svg>
                     <span class="font-semibold text-gray-700">Rectangle</span>
                     <span class="text-xs text-gray-500">Custom dimensions</span>
                 </button>
@@ -26,74 +32,133 @@
                     [class.ring-indigo-500]="selectedShape === 'square'"
                     [class.bg-indigo-50]="selectedShape === 'square'"
                     class="p-4 border-2 border-gray-300 rounded-xl hover:border-indigo-400 
-                            transition-all duration-200 flex flex-col items-center gap-2 cursor-pointer">
-                    <div class="text-4xl">⬜</div>
+                            transition-all duration-200 flex flex-col items-center gap-2 cursor-pointer group">
+                    <!-- SVG Square Icon -->
+                    <svg class="w-16 h-16" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="16" y="16" width="32" height="32" 
+                              class="fill-none stroke-gray-400 group-hover:stroke-indigo-500 transition-colors"
+                              [class.stroke-indigo-600]="selectedShape === 'square'"
+                              stroke-width="3" rx="2"/>
+                    </svg>
                     <span class="font-semibold text-gray-700">Square</span>
                     <span class="text-xs text-gray-500">Equal sides</span>
                 </button>
             </div>
         </div>
-        
-        <!-- Dimensions -->
-        <div class="mb-6 space-y-4">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Dimensions (meters):</label>
-            
-            <!-- Width -->
-            <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                <label class="text-sm font-medium text-gray-700">Width:</label>
-                <div class="flex items-center gap-2">
-                    <input 
-                        type="number" 
-                        [(ngModel)]="roomWidth" 
-                        (ngModelChange)="onWidthChange()"
-                        min="2" 
-                        max="20" 
-                        step="0.5"
-                        class="w-20 px-3 py-1.5 border-2 border-gray-300 rounded-lg text-center 
-                                focus:border-indigo-500 focus:outline-none" />
-                    <span class="text-sm text-gray-500">m</span>
+
+        <!-- Two Column Layout -->
+        <div class="grid grid-cols-2 gap-6 mb-6">
+            <!-- Left Column: Dimensions -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-3">Dimensions (meters):</label>
+                <div class="space-y-3">
+                    <!-- Width -->
+                    <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                        <label class="text-sm font-medium text-gray-700">Width:</label>
+                        <div class="flex items-center gap-2">
+                            <input 
+                                type="number" 
+                                [(ngModel)]="roomWidth" 
+                                (ngModelChange)="onWidthChange()"
+                                min="2" 
+                                max="20" 
+                                step="0.5"
+                                class="w-20 px-3 py-1.5 border-2 border-gray-300 rounded-lg text-center 
+                                        focus:border-indigo-500 focus:outline-none" />
+                            <span class="text-sm text-gray-500">m</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Height -->
+                    <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                        <label class="text-sm font-medium text-gray-700">Height:</label>
+                        <div class="flex items-center gap-2">
+                            <input 
+                                type="number" 
+                                [(ngModel)]="roomHeight" 
+                                min="2" 
+                                max="10" 
+                                step="0.5"
+                                class="w-20 px-3 py-1.5 border-2 border-gray-300 rounded-lg text-center 
+                                        focus:border-indigo-500 focus:outline-none" />
+                            <span class="text-sm text-gray-500">m</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Depth (only for rectangle) -->
+                    <div 
+                        *ngIf="selectedShape === 'rectangle'"
+                        class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                        <label class="text-sm font-medium text-gray-700">Depth:</label>
+                        <div class="flex items-center gap-2">
+                            <input 
+                                type="number" 
+                                [(ngModel)]="roomDepth" 
+                                min="2" 
+                                max="20" 
+                                step="0.5"
+                                class="w-20 px-3 py-1.5 border-2 border-gray-300 rounded-lg text-center 
+                                        focus:border-indigo-500 focus:outline-none" />
+                            <span class="text-sm text-gray-500">m</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Square Info -->
+                    <div 
+                        *ngIf="selectedShape === 'square'"
+                        class="text-sm text-gray-500 italic text-center p-3">
+                        Depth will match width: {{ roomWidth }}m × {{ roomWidth }}m
+                    </div>
                 </div>
             </div>
-            
-            <!-- Height -->
-            <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                <label class="text-sm font-medium text-gray-700">Height:</label>
-                <div class="flex items-center gap-2">
-                    <input 
-                        type="number" 
-                        [(ngModel)]="roomHeight" 
-                        min="2" 
-                        max="10" 
-                        step="0.5"
-                        class="w-20 px-3 py-1.5 border-2 border-gray-300 rounded-lg text-center 
-                                focus:border-indigo-500 focus:outline-none" />
-                    <span class="text-sm text-gray-500">m</span>
+
+            <!-- Right Column: Colors & Textures -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-3">Appearance:</label>
+                <div class="space-y-3">
+                    <!-- Wall Color -->
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <label class="block text-xs font-medium text-gray-600 mb-2">Wall Color:</label>
+                        <div class="flex items-center gap-3">
+                            <input 
+                                type="color" 
+                                [(ngModel)]="wallColor"
+                                class="w-12 h-12 rounded cursor-pointer border-2 border-gray-300" />
+                            <div class="flex-1">
+                                <div class="text-sm font-medium text-gray-700">{{ wallColor }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Floor Texture -->
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <label class="block text-xs font-medium text-gray-600 mb-2">Floor Type:</label>
+                        <select 
+                            [(ngModel)]="floorTexture"
+                            class="w-full px-3 py-2 border-2 border-gray-300 rounded-lg cursor-pointer
+                                   focus:border-indigo-500 focus:outline-none bg-white font-medium text-sm">
+                            <option value="color">Solid Color</option>
+                            <option value="wood">Wood</option>
+                            <option value="tile">Tile</option>
+                            <option value="concrete">Concrete</option>
+                            <option value="carpet">Carpet</option>
+                        </select>
+                    </div>
+
+                    <!-- Floor Color (only show if solid color selected) -->
+                    <div *ngIf="floorTexture === 'color'" class="bg-gray-50 p-3 rounded-lg">
+                        <label class="block text-xs font-medium text-gray-600 mb-2">Floor Color:</label>
+                        <div class="flex items-center gap-3">
+                            <input 
+                                type="color" 
+                                [(ngModel)]="floorColor"
+                                class="w-12 h-12 rounded cursor-pointer border-2 border-gray-300" />
+                            <div class="flex-1">
+                                <div class="text-sm font-medium text-gray-700">{{ floorColor }}</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Depth (only for rectangle) -->
-            <div 
-                *ngIf="selectedShape === 'rectangle'"
-                class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-                <label class="text-sm font-medium text-gray-700">Depth:</label>
-                <div class="flex items-center gap-2">
-                    <input 
-                        type="number" 
-                        [(ngModel)]="roomDepth" 
-                        min="2" 
-                        max="20" 
-                        step="0.5"
-                        class="w-20 px-3 py-1.5 border-2 border-gray-300 rounded-lg text-center 
-                                focus:border-indigo-500 focus:outline-none" />
-                    <span class="text-sm text-gray-500">m</span>
-                </div>
-            </div>
-            
-            <!-- Square Info -->
-            <div 
-                *ngIf="selectedShape === 'square'"
-                class="text-sm text-gray-500 italic text-center">
-                Depth will match width: {{ roomWidth }}m × {{ roomWidth }}m
             </div>
         </div>
         

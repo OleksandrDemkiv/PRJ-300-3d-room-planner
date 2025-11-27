@@ -9,11 +9,11 @@
 @keyframes slideDown {
     from {
         opacity: 0;
-        transform: translateX(-50%) translateY(-10px);
+        top: -10px;
     }
     to {
         opacity: 1;
-        transform: translateX(-50%) translateY(0);
+        top: 1rem;
     }
 }
 

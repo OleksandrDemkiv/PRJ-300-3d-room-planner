@@ -7,6 +7,9 @@ export interface RoomConfig {
   width: number;
   height: number;
   depth: number;
+  wallColor: string;
+  floorTexture: 'color' | 'wood' | 'tile' | 'concrete' | 'carpet';
+  floorColor: string;
 }
 
 @Component({
@@ -23,6 +26,9 @@ export class RoomConfigModalComponent {
   roomWidth = 6;
   roomHeight = 3;
   roomDepth = 5;
+  wallColor = '#E8D5B5';
+  floorTexture: 'color' | 'wood' | 'tile' | 'concrete' | 'carpet' = 'wood';
+  floorColor = '#D2B48C';
 
   selectShape(shape: 'rectangle' | 'square') {
     this.selectedShape = shape;
@@ -42,7 +48,10 @@ export class RoomConfigModalComponent {
       shape: this.selectedShape,
       width: this.roomWidth,
       height: this.roomHeight,
-      depth: this.roomDepth
+      depth: this.roomDepth,
+      wallColor: this.wallColor,
+      floorTexture: this.floorTexture,
+      floorColor: this.floorColor
     };
     this.roomConfigured.emit(config);
   }
